@@ -37,7 +37,20 @@ LRESULT CALLBACK MainWindowCallback(
 
 		case WM_PAINT:
 		{
-			OutputDebugString("WM_PAINT\n");
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-paintstruct
+			PAINTSTRUCT paint;
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-beginpaint
+			HDC devContext = BeginPaint(window, &paint);
+
+			int x = paint.rcPaint.left;
+			int y = paint.rcPaint.top;
+			int width = paint.rcPaint.right - paint.rcPaint.left;
+			int height = paint.rcPaint.bottom - paint.rcPaint.top;
+			
+			// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-patblt
+			PatBlt(devContext, x, y, width, height, WHITENESS);
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
+			EndPaint(window, &paint);
 		} break;
 
 		default:
