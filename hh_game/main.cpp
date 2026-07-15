@@ -72,5 +72,53 @@ int CALLBACK WinMain(
 	winClass.hInstance = instance;
 	winClass.lpszClassName = "TokiGameWindowClass";
 
+	// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassa
+	if (RegisterClass(&winClass))
+	{
+		// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexa
+		HWND winHandle = CreateWindowEx(
+			0,
+			winClass.lpszClassName,
+			"Toki's Game",
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			0,
+			0,
+			instance,
+			0);
+
+		if (winHandle)
+		{
+			for (;;)
+			{
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msg
+				MSG message;
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessage
+				BOOL msgResult = GetMessage(&message, 0, 0, 0);
+				if (msgResult > 0)
+				{
+					// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
+					TranslateMessage(&message);
+					// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
+					DispatchMessage(&message);
+				}
+				else {
+					break;
+				}
+			}
+		}
+		else 
+		{
+			// TODO(kt): maybe log/error system
+		}
+	}
+	else 
+	{
+		// TODO(kt): maybe log/error system
+	}
+
 	return(0);
 }
