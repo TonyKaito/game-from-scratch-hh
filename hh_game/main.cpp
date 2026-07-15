@@ -13,5 +13,8 @@ int CALLBACK WinMain(
 	LPSTR lpCmdLine,
 	int nCmdShow)
 {
+	// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messagebox
+	MessageBoxA(0, "This is Toki's Window.", "Toki's Window", MB_OK | MB_ICONINFORMATION);
+
 	return(0);
 }
