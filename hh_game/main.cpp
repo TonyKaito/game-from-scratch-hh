@@ -1,5 +1,11 @@
 #include <windows.h>
 
+#define local_persist static
+#define global_var static
+#define internal_funct static
+
+// Global, temporarily
+global_var bool running; // automatically 0 by default
 
 /*
 * https://learn.microsoft.com/en-us/windows/win32/api/winuser/nc-winuser-wndproc
@@ -22,12 +28,12 @@ LRESULT CALLBACK MainWindowCallback(
 
 		case WM_DESTROY:
 		{
-			OutputDebugString("WM_DESTROY\n");
+			running = false; // TODO(kt): handle as error
 		} break;
 
 		case WM_CLOSE:
 		{
-			OutputDebugString("WM_CLOSE\n");
+			running = false; // TODO(kt): handle as message
 		} break;
 
 		case WM_ACTIVATEAPP:
@@ -47,7 +53,7 @@ LRESULT CALLBACK MainWindowCallback(
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
 			
-			static DWORD operation = WHITENESS; // temp var
+			local_persist DWORD operation = WHITENESS; // temp var
 			// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-patblt
 			PatBlt(devContext, x, y, width, height, operation);
 			if (operation == WHITENESS)
@@ -115,7 +121,8 @@ int CALLBACK WinMain(
 
 		if (winHandle)
 		{
-			for (;;)
+			running = true;
+			while (running)
 			{
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msg
 				MSG message;
