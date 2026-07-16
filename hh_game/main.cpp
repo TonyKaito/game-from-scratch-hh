@@ -47,8 +47,18 @@ LRESULT CALLBACK MainWindowCallback(
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
 			
+			static DWORD operation = WHITENESS; // temp var
 			// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-patblt
-			PatBlt(devContext, x, y, width, height, WHITENESS);
+			PatBlt(devContext, x, y, width, height, operation);
+			if (operation == WHITENESS)
+			{
+				operation = BLACKNESS;
+			}
+			else
+			{
+				operation = WHITENESS;
+			}
+
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
 			EndPaint(window, &paint);
 		} break;
