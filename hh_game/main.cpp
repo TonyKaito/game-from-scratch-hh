@@ -41,21 +41,13 @@ internal_funct void RenderBGGradient(int xOff, int yOff)
 	uint8* row = (uint8*)bmMemory;
 	for (int y = 0; y < bmHeight; y++)
 	{
-		uint8* pixel = (uint8*)row;
+		uint32* pixel = (uint32*)row;
 		for (int x = 0; x < bmWidth; x++)
 		{
-			// Pixel in memory (little endian): BB GG RR xx
-			*pixel = (uint8)(x + xOff);
-			pixel++;
+			uint8 blue = (x + xOff);
+			uint8 green = (y + yOff);
 
-			*pixel = (uint8)(y + yOff);
-			pixel++;
-
-			*pixel = 0;
-			pixel++;
-
-			*pixel = 0;
-			pixel++;
+			*pixel++ = (green << 8) | blue;
 		}
 		row += pitch;
 	}
@@ -89,12 +81,12 @@ internal_funct void Win32ResizeDIBSection(
 	// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
 	bmMemory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-	RenderBGGradient(128, 0);
+	// TODO(kt): turn it to black
 }
 
 internal_funct void Win32UpdateWindow(
 	HDC devContext,
-	RECT* winRect,
+	RECT* clientRect,
 	int x,
 	int y,
 	int width,
@@ -119,8 +111,8 @@ internal_funct void Win32UpdateWindow(
 		SRCCOPY);
 	*/
 
-	int winWidth = winRect->right - winRect->left;
-	int winHeight = winRect->bottom - winRect->top;
+	int winWidth = clientRect->right - clientRect->left;
+	int winHeight = clientRect->bottom - clientRect->top;
 	StretchDIBits(
 		devContext,
 		0,
@@ -253,6 +245,9 @@ int CALLBACK WinMain(
 		if (winHandle)
 		{
 			running = true;
+
+			int xOff = 0;
+			int yOff = 0;
 			while (running)
 			{
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msg
@@ -270,6 +265,23 @@ int CALLBACK WinMain(
 					// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
 					DispatchMessage(&message);
 				}
+
+				// TODO(kt): refactor into a function
+				RenderBGGradient(xOff, yOff);
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc
+				HDC devContext = GetDC(winHandle);
+
+				RECT clientRect;
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
+				GetClientRect(winHandle, &clientRect);
+				int winWidth = clientRect.right - clientRect.left;
+				int winHeight = clientRect.bottom - clientRect.top;
+				Win32UpdateWindow(devContext, &clientRect, 0, 0, winWidth, winHeight);
+
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-releasedc
+				ReleaseDC(winHandle, devContext);
+
+				xOff++;
 			}
 		}
 		else 
