@@ -257,17 +257,18 @@ int CALLBACK WinMain(
 			{
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msg
 				MSG message;
-				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessage
-				BOOL msgResult = GetMessage(&message, 0, 0, 0);
-				if (msgResult > 0)
+				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-peekmessagea
+				while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 				{
+					if (message.message == WM_QUIT)
+					{
+						running = false;
+					}
+
 					// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
 					TranslateMessage(&message);
 					// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
 					DispatchMessage(&message);
-				}
-				else {
-					break;
 				}
 			}
 		}
