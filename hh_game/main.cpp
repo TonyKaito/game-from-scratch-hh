@@ -27,7 +27,39 @@ global_var BITMAPINFO bmInfo;
 global_var void* bmMemory;
 global_var int bmWidth;
 global_var int bmHeight;
+global_var int bytesPerPix = 4;
 
+/*
+* 
+*/
+internal_funct void RenderBGGradient(int xOff, int yOff)
+{
+	int width = bmWidth;
+	int height = bmHeight;
+
+	int pitch = width * bytesPerPix;
+	uint8* row = (uint8*)bmMemory;
+	for (int y = 0; y < bmHeight; y++)
+	{
+		uint8* pixel = (uint8*)row;
+		for (int x = 0; x < bmWidth; x++)
+		{
+			// Pixel in memory (little endian): BB GG RR xx
+			*pixel = (uint8)(x + xOff);
+			pixel++;
+
+			*pixel = (uint8)(y + yOff);
+			pixel++;
+
+			*pixel = 0;
+			pixel++;
+
+			*pixel = 0;
+			pixel++;
+		}
+		row += pitch;
+	}
+}
 
 /*
 * 
@@ -53,33 +85,11 @@ internal_funct void Win32ResizeDIBSection(
 	bmInfo.bmiHeader.biCompression = BI_RGB;
 	
 	// no need for DC, difference between StretchDIBits vs BitBlt
-	int bytesPerPix = 4;
 	int bmMemorySize = (width * height) * bytesPerPix;
 	// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
 	bmMemory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-	int pitch = width * bytesPerPix;
-	uint8* row = (uint8 *)bmMemory;
-	for (int y = 0; y < bmHeight; y++)
-	{
-		uint8* pixel = (uint8*)row;
-		for (int x = 0; x < bmWidth; x++)
-		{
-			// Pixel in memory (little endian): BB GG RR xx
-			*pixel = (uint8)x;
-			pixel++;
-			
-			*pixel = (uint8)y;
-			pixel++;
-			
-			*pixel = 0;
-			pixel++;
-
-			*pixel = 0;
-			pixel++;
-		}
-		row += pitch;
-	}
+	RenderBGGradient(128, 0);
 }
 
 internal_funct void Win32UpdateWindow(
