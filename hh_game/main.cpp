@@ -14,6 +14,9 @@ global_var bool running; // temporarily
 // https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader
 global_var BITMAPINFO bmInfo;
 global_var void* bmMemory;
+global_var int bmWidth;
+global_var int bmHeight;
+
 
 /*
 * 
@@ -30,7 +33,7 @@ internal_funct void Win32ResizeDIBSection(
 
 	bmInfo.bmiHeader.biSize = sizeof(bmInfo.bmiHeader);
 	bmInfo.bmiHeader.biWidth = width;
-	bmInfo.bmiHeader.biHeight = height;
+	bmInfo.bmiHeader.biHeight = -height;
 	bmInfo.bmiHeader.biPlanes = 1;
 	bmInfo.bmiHeader.biBitCount = 32;
 	bmInfo.bmiHeader.biCompression = BI_RGB;
@@ -44,13 +47,16 @@ internal_funct void Win32ResizeDIBSection(
 
 internal_funct void Win32UpdateWindow(
 	HDC devContext,
+	RECT* winRect,
 	int x,
 	int y,
 	int width,
 	int height)
 {
 	// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-stretchdibits
-	StretchDIBits(
+	/*
+	* // "dirty rectangle", will return to later
+	* StretchDIBits(
 		devContext,
 		x,
 		y,
@@ -60,6 +66,24 @@ internal_funct void Win32UpdateWindow(
 		y, 
 		width,
 		height,
+		bmMemory,
+		&bmInfo,
+		DIB_RGB_COLORS,
+		SRCCOPY);
+	*/
+
+	int winWidth = winRect->right - winRect->left;
+	int winHeight = winRect->bottom - winRect->top;
+	StretchDIBits(
+		devContext,
+		0,
+		0,
+		bmWidth,
+		bmHeight,
+		0,
+		0,
+		winWidth,
+		winHeight,
 		bmMemory,
 		&bmInfo,
 		DIB_RGB_COLORS,
@@ -118,8 +142,12 @@ LRESULT CALLBACK Win32MainWindowCallback(
 			int y = paint.rcPaint.top;
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
+
+			RECT clientRect;
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
+			GetClientRect(window, &clientRect);
 			
-			Win32UpdateWindow(devContext, x, y, width, height);
+			Win32UpdateWindow(devContext, &clientRect, x, y, width, height);
 
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
 			EndPaint(window, &paint);
