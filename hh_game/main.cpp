@@ -1,8 +1,19 @@
 #include <windows.h>
+#include <stdint.h>
 
 #define local_persist static
 #define global_var static
 #define internal_funct static
+
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
 
 /*
 * Globals
@@ -31,9 +42,12 @@ internal_funct void Win32ResizeDIBSection(
 		VirtualFree(bmMemory, 0, MEM_RELEASE);
 	}
 
+	bmWidth = width;
+	bmHeight = height;
+
 	bmInfo.bmiHeader.biSize = sizeof(bmInfo.bmiHeader);
-	bmInfo.bmiHeader.biWidth = width;
-	bmInfo.bmiHeader.biHeight = -height;
+	bmInfo.bmiHeader.biWidth = bmWidth;
+	bmInfo.bmiHeader.biHeight = -bmHeight;
 	bmInfo.bmiHeader.biPlanes = 1;
 	bmInfo.bmiHeader.biBitCount = 32;
 	bmInfo.bmiHeader.biCompression = BI_RGB;
@@ -43,6 +57,29 @@ internal_funct void Win32ResizeDIBSection(
 	int bmMemorySize = (width * height) * bytesPerPix;
 	// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
 	bmMemory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
+
+	int pitch = width * bytesPerPix;
+	uint8* row = (uint8 *)bmMemory;
+	for (int y = 0; y < bmHeight; y++)
+	{
+		uint8* pixel = (uint8*)row;
+		for (int x = 0; x < bmWidth; x++)
+		{
+			// Pixel in memory (little endian): BB GG RR xx
+			*pixel = (uint8)x;
+			pixel++;
+			
+			*pixel = (uint8)y;
+			pixel++;
+			
+			*pixel = 0;
+			pixel++;
+
+			*pixel = 0;
+			pixel++;
+		}
+		row += pitch;
+	}
 }
 
 internal_funct void Win32UpdateWindow(
