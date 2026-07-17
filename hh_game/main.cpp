@@ -4,13 +4,72 @@
 #define global_var static
 #define internal_funct static
 
-// Global, temporarily
-global_var bool running; // automatically 0 by default
+/*
+* Globals
+* automatically 0 by default
+*/
+global_var bool running; // temporarily
+
+// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfo
+// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader
+global_var BITMAPINFO bmInfo;
+global_var void* bmMemory;
+
+/*
+* 
+*/
+internal_funct void Win32ResizeDIBSection(
+	int width,
+	int height)
+{
+	if (bmMemory)
+	{
+		// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfree
+		VirtualFree(bmMemory, 0, MEM_RELEASE);
+	}
+
+	bmInfo.bmiHeader.biSize = sizeof(bmInfo.bmiHeader);
+	bmInfo.bmiHeader.biWidth = width;
+	bmInfo.bmiHeader.biHeight = height;
+	bmInfo.bmiHeader.biPlanes = 1;
+	bmInfo.bmiHeader.biBitCount = 32;
+	bmInfo.bmiHeader.biCompression = BI_RGB;
+	
+	// no need for DC, difference between StretchDIBits vs BitBlt
+	int bytesPerPix = 4;
+	int bmMemorySize = (width * height) * bytesPerPix;
+	// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
+	bmMemory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
+}
+
+internal_funct void Win32UpdateWindow(
+	HDC devContext,
+	int x,
+	int y,
+	int width,
+	int height)
+{
+	// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-stretchdibits
+	StretchDIBits(
+		devContext,
+		x,
+		y,
+		width,
+		height,
+		x,
+		y, 
+		width,
+		height,
+		bmMemory,
+		&bmInfo,
+		DIB_RGB_COLORS,
+		SRCCOPY);
+}
 
 /*
 * https://learn.microsoft.com/en-us/windows/win32/api/winuser/nc-winuser-wndproc
 */
-LRESULT CALLBACK MainWindowCallback(
+LRESULT CALLBACK Win32MainWindowCallback(
 	HWND window,
 	UINT message, // https://learn.microsoft.com/en-us/windows/win32/winmsg/about-messages-and-message-queues#system-defined-messages
 	WPARAM wParam,
@@ -23,7 +82,14 @@ LRESULT CALLBACK MainWindowCallback(
 	{
 		case WM_SIZE:
 		{
-			OutputDebugString("WM_SIZE\n");
+			RECT clientRect;
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
+			GetClientRect(window, &clientRect);
+
+			int width = clientRect.right - clientRect.left;
+			int height = clientRect.bottom - clientRect.top;
+
+			Win32ResizeDIBSection(width, height);
 		} break;
 
 		case WM_DESTROY:
@@ -53,17 +119,7 @@ LRESULT CALLBACK MainWindowCallback(
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
 			
-			local_persist DWORD operation = WHITENESS; // temp var
-			// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-patblt
-			PatBlt(devContext, x, y, width, height, operation);
-			if (operation == WHITENESS)
-			{
-				operation = BLACKNESS;
-			}
-			else
-			{
-				operation = WHITENESS;
-			}
+			Win32UpdateWindow(devContext, x, y, width, height);
 
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
 			EndPaint(window, &paint);
@@ -97,7 +153,7 @@ int CALLBACK WinMain(
 
 	// https://learn.microsoft.com/en-us/windows/win32/winmsg/window-class-styles
 	winClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
-	winClass.lpfnWndProc = MainWindowCallback;
+	winClass.lpfnWndProc = Win32MainWindowCallback;
 	winClass.hInstance = instance;
 	winClass.lpszClassName = "TokiGameWindowClass";
 
