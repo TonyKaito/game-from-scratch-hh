@@ -26,12 +26,33 @@ struct win32_offscreen_buffer {
 	int bytesPerPix;
 };
 
+struct win32_window_dimension {
+	int width;
+	int height;
+};
+
 /*
 * Globals
 * automatically 0 by default
 */
 global_var bool running; // temporarily
 global_var win32_offscreen_buffer globalBackBuffer;
+
+/*
+* 
+*/
+win32_window_dimension Win32GetWindowDimension(HWND window)
+{
+	win32_window_dimension result;
+
+	RECT clientRect;
+	// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
+	GetClientRect(window, &clientRect);
+	result.width = clientRect.right - clientRect.left;
+	result.height = clientRect.bottom - clientRect.top;
+	
+	return(result);
+}
 
 /*
 * 
@@ -93,7 +114,8 @@ internal_funct void Win32ResizeDIBSection(
 internal_funct void Win32DisplayBufferInWindow(
 	win32_offscreen_buffer buffer,
 	HDC devContext,
-	RECT clientRect, // general rule, avoid passing pointers into functions if possible, unless struct is big. harder for compilers to deal with pointers.
+	int winWidth,
+	int winHeight,
 	int x,
 	int y,
 	int width,
@@ -117,19 +139,16 @@ internal_funct void Win32DisplayBufferInWindow(
 		DIB_RGB_COLORS,
 		SRCCOPY);
 	*/
-
-	int winWidth = clientRect.right - clientRect.left;
-	int winHeight = clientRect.bottom - clientRect.top;
 	StretchDIBits(
 		devContext,
 		0,
 		0,
-		buffer.width,
-		buffer.height,
-		0,
-		0,
 		winWidth,
 		winHeight,
+		0,
+		0,
+		buffer.width,
+		buffer.height,
 		buffer.memory,
 		&buffer.info,
 		DIB_RGB_COLORS,
@@ -152,14 +171,8 @@ LRESULT CALLBACK Win32MainWindowCallback(
 	{
 		case WM_SIZE:
 		{
-			RECT clientRect;
-			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
-			GetClientRect(window, &clientRect);
-
-			int width = clientRect.right - clientRect.left;
-			int height = clientRect.bottom - clientRect.top;
-
-			Win32ResizeDIBSection(&globalBackBuffer, width, height);
+			win32_window_dimension dimension = Win32GetWindowDimension(window);
+			Win32ResizeDIBSection(&globalBackBuffer, dimension.width, dimension.height);
 		} break;
 
 		case WM_DESTROY:
@@ -189,11 +202,9 @@ LRESULT CALLBACK Win32MainWindowCallback(
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
 
-			RECT clientRect;
-			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
-			GetClientRect(window, &clientRect);
+			win32_window_dimension dimension = Win32GetWindowDimension(window);
 			
-			Win32DisplayBufferInWindow(globalBackBuffer, devContext, clientRect, x, y, width, height);
+			Win32DisplayBufferInWindow(globalBackBuffer, devContext, dimension.width, dimension.height, x, y, width, height);
 
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
 			EndPaint(window, &paint);
@@ -278,12 +289,8 @@ int CALLBACK WinMain(
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc
 				HDC devContext = GetDC(winHandle);
 
-				RECT clientRect;
-				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
-				GetClientRect(winHandle, &clientRect);
-				int winWidth = clientRect.right - clientRect.left;
-				int winHeight = clientRect.bottom - clientRect.top;
-				Win32DisplayBufferInWindow(globalBackBuffer, devContext, clientRect, 0, 0, winWidth, winHeight);
+				win32_window_dimension dimension = Win32GetWindowDimension(winHandle);
+				Win32DisplayBufferInWindow(globalBackBuffer, devContext, dimension.width, dimension.height, 0, 0, dimension.width, dimension.height);
 
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-releasedc
 				ReleaseDC(winHandle, devContext);
