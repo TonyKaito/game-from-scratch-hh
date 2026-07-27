@@ -171,8 +171,6 @@ LRESULT CALLBACK Win32MainWindowCallback(
 	{
 		case WM_SIZE:
 		{
-			win32_window_dimension dimension = Win32GetWindowDimension(window);
-			Win32ResizeDIBSection(&globalBackBuffer, dimension.width, dimension.height);
 		} break;
 
 		case WM_DESTROY:
@@ -235,6 +233,8 @@ int CALLBACK WinMain(
 {
 	// https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-wndclassa
 	WNDCLASS winClass = {};
+
+	Win32ResizeDIBSection(&globalBackBuffer, 1280, 720);
 
 	// https://learn.microsoft.com/en-us/windows/win32/winmsg/window-class-styles
 	winClass.style = CS_HREDRAW | CS_VREDRAW;
