@@ -15,34 +15,38 @@ typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+
+struct win32_offscreen_buffer {
+	// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfo
+	// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader
+	BITMAPINFO info;
+	void* memory;
+	int width;
+	int height;
+	int bytesPerPix;
+};
+
 /*
 * Globals
 * automatically 0 by default
 */
 global_var bool running; // temporarily
-
-// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfo
-// https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapinfoheader
-global_var BITMAPINFO bmInfo;
-global_var void* bmMemory;
-global_var int bmWidth;
-global_var int bmHeight;
-global_var int bytesPerPix = 4;
+global_var win32_offscreen_buffer globalBackBuffer;
 
 /*
 * 
 */
-internal_funct void RenderBGGradient(int xOff, int yOff)
+internal_funct void RenderBGGradient(win32_offscreen_buffer buffer, int xOff, int yOff)
 {
-	int width = bmWidth;
-	int height = bmHeight;
+	int width = buffer.width;
+	int height = buffer.height;
 
-	int pitch = width * bytesPerPix;
-	uint8* row = (uint8*)bmMemory;
-	for (int y = 0; y < bmHeight; y++)
+	int pitch = width * buffer.bytesPerPix;
+	uint8* row = (uint8*)buffer.memory;
+	for (int y = 0; y < buffer.height; y++)
 	{
 		uint32* pixel = (uint32*)row;
-		for (int x = 0; x < bmWidth; x++)
+		for (int x = 0; x < buffer.width; x++)
 		{
 			uint8 blue = (x + xOff);
 			uint8 green = (y + yOff);
@@ -57,36 +61,39 @@ internal_funct void RenderBGGradient(int xOff, int yOff)
 * 
 */
 internal_funct void Win32ResizeDIBSection(
+	win32_offscreen_buffer* buffer,
 	int width,
 	int height)
 {
-	if (bmMemory)
+	if (buffer->memory)
 	{
 		// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfree
-		VirtualFree(bmMemory, 0, MEM_RELEASE);
+		VirtualFree(buffer->memory, 0, MEM_RELEASE);
 	}
 
-	bmWidth = width;
-	bmHeight = height;
+	buffer->width = width;
+	buffer->height = height;
+	buffer->bytesPerPix = 4;
 
-	bmInfo.bmiHeader.biSize = sizeof(bmInfo.bmiHeader);
-	bmInfo.bmiHeader.biWidth = bmWidth;
-	bmInfo.bmiHeader.biHeight = -bmHeight;
-	bmInfo.bmiHeader.biPlanes = 1;
-	bmInfo.bmiHeader.biBitCount = 32;
-	bmInfo.bmiHeader.biCompression = BI_RGB;
+	buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
+	buffer->info.bmiHeader.biWidth = buffer->width;
+	buffer->info.bmiHeader.biHeight = -buffer->height;
+	buffer->info.bmiHeader.biPlanes = 1;
+	buffer->info.bmiHeader.biBitCount = 32;
+	buffer->info.bmiHeader.biCompression = BI_RGB;
 	
 	// no need for DC, difference between StretchDIBits vs BitBlt
-	int bmMemorySize = (width * height) * bytesPerPix;
+	int bmMemorySize = (buffer->width * buffer->height) * buffer->bytesPerPix;
 	// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
-	bmMemory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
+	buffer->memory = VirtualAlloc(0, bmMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
 	// TODO(kt): turn it to black
 }
 
-internal_funct void Win32UpdateWindow(
+internal_funct void Win32DisplayBufferInWindow(
+	win32_offscreen_buffer buffer,
 	HDC devContext,
-	RECT* clientRect,
+	RECT clientRect, // general rule, avoid passing pointers into functions if possible, unless struct is big. harder for compilers to deal with pointers.
 	int x,
 	int y,
 	int width,
@@ -111,20 +118,20 @@ internal_funct void Win32UpdateWindow(
 		SRCCOPY);
 	*/
 
-	int winWidth = clientRect->right - clientRect->left;
-	int winHeight = clientRect->bottom - clientRect->top;
+	int winWidth = clientRect.right - clientRect.left;
+	int winHeight = clientRect.bottom - clientRect.top;
 	StretchDIBits(
 		devContext,
 		0,
 		0,
-		bmWidth,
-		bmHeight,
+		buffer.width,
+		buffer.height,
 		0,
 		0,
 		winWidth,
 		winHeight,
-		bmMemory,
-		&bmInfo,
+		buffer.memory,
+		&buffer.info,
 		DIB_RGB_COLORS,
 		SRCCOPY);
 }
@@ -152,7 +159,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 			int width = clientRect.right - clientRect.left;
 			int height = clientRect.bottom - clientRect.top;
 
-			Win32ResizeDIBSection(width, height);
+			Win32ResizeDIBSection(&globalBackBuffer, width, height);
 		} break;
 
 		case WM_DESTROY:
@@ -186,7 +193,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
 			GetClientRect(window, &clientRect);
 			
-			Win32UpdateWindow(devContext, &clientRect, x, y, width, height);
+			Win32DisplayBufferInWindow(globalBackBuffer, devContext, clientRect, x, y, width, height);
 
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-endpaint
 			EndPaint(window, &paint);
@@ -219,7 +226,7 @@ int CALLBACK WinMain(
 	WNDCLASS winClass = {};
 
 	// https://learn.microsoft.com/en-us/windows/win32/winmsg/window-class-styles
-	winClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+	winClass.style = CS_HREDRAW | CS_VREDRAW;
 	winClass.lpfnWndProc = Win32MainWindowCallback;
 	winClass.hInstance = instance;
 	winClass.lpszClassName = "TokiGameWindowClass";
@@ -267,7 +274,7 @@ int CALLBACK WinMain(
 				}
 
 				// TODO(kt): refactor into a function
-				RenderBGGradient(xOff, yOff);
+				RenderBGGradient(globalBackBuffer, xOff, yOff);
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdc
 				HDC devContext = GetDC(winHandle);
 
@@ -276,7 +283,7 @@ int CALLBACK WinMain(
 				GetClientRect(winHandle, &clientRect);
 				int winWidth = clientRect.right - clientRect.left;
 				int winHeight = clientRect.bottom - clientRect.top;
-				Win32UpdateWindow(devContext, &clientRect, 0, 0, winWidth, winHeight);
+				Win32DisplayBufferInWindow(globalBackBuffer, devContext, clientRect, 0, 0, winWidth, winHeight);
 
 				// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-releasedc
 				ReleaseDC(winHandle, devContext);
